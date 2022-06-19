@@ -4,7 +4,9 @@
 
 ========================================================
 
-GNU Octave (https://www.gnu.org/software/octave/index) was used to develop the functions used here.The function network_numbers returns the values of the following network numbers of a chemical reaction network:
+GNU Octave (https://www.gnu.org/software/octave/index) was used to develop the functions used here.=========
+Functions
+=========The function network_numbers returns the values of the following network numbers of a chemical reaction network:
 
      - Species (m)
      - Complexes (n)
@@ -22,7 +24,25 @@ GNU Octave (https://www.gnu.org/software/octave/index) was used to develop the f
 
 The output variable 'model' allows the user to view the complete network with all the species listed in the 'species' field of the structure 'model'.
 
-Parts of the code come from the file model_analysis.m which is part of the ERNEST toolbox for chemical chemical reaction network theory [3]. The computation of the number of linkage classes and strong linkage classes also utilizes functions from the same toolbox, specifically in the folders @multigraph and @umultigraph. These can all be downloaded from https://www.sissa.it/fa/altafini/papers/SoAl09/.
+network_numbers uses the following functions:     1. init_graph
+          - OUTPUT: Creates an empty structure that represents an undirected graph. The structure has the following fields: 'vertices' and 'edges'.
+          - INPUT: none     2. add_vertex
+          - OUTPUT: Adds a vertex to an undirected graph. This is indicated in the 'vertices' field of the structure representing the graph.
+          - INPUTS:
+                    - g: a structure with fields 'vertices' and 'edges'
+                    - v: a string representing the vertex     3. add_edge
+          - OUTPUT: Adds an undirected edge between two vertices. The vertex connected to a vertex is indicated in the subfield 'vertex' and the label for the edge is in the subfield 'label'. Both subfields are under the field 'edges' corresponding to the vertex. The field and subfields belong to the structure representing the graph.
+          - INPUTS:
+                    - g: a structure with fields 'vertices' and 'edges'
+                    - v1, v2: strings representing the vertices connected by an undirected edge (make sure 'add_vertex' has been used to add the vertices 'v1' and 'v2' to g)
+
+     4. add_path
+          - OUTPUT: Adds a directed edge between two vertices. The vertex connected to a vertex is indicated in the subfield 'vertex' and the label for the edge is in the subfield 'label'. Both subfields are under the field 'edges' corresponding to the vertex. The field and subfields belong to the structure representing the graph.
+          - INPUTS:
+                    - g: a structure with fields 'vertices' and 'edges'
+                    - v1, v2: strings representing the vertices connected by a directed edge (make sure 'add_vertex' has been used to add the vertices 'v1' and 'v2' to g)
+
+Parts of the code come from the file model_analysis.m which is part of the ERNEST toolbox for chemical chemical reaction network theory [3]. The toolbox can be downloaded from https://www.sissa.it/fa/altafini/papers/SoAl09/.
 
 The codes for the computation for the number of reversible reaction, irreversible reactions, reactions, reactant rank, and reactant deficiency are unique from the author. Discussions on reactant rank and reactant deficiency can be found on [2].
 

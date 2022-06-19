@@ -62,7 +62,7 @@
 
 
 
-function [model] = network_numbers(model)
+function model = network_numbers(model)
     
     %
     % Add to 'model.species' all species indicated in the reactions
@@ -101,44 +101,44 @@ function [model] = network_numbers(model)
     %
     
     % Initialize the matrix of reactant complexes
-    reactant_complexes = [ ];
+    reactant_complex = [ ];
     
     % Initialize the matrix of product complexes
-    product_complexes = [ ];
+    product_complex = [ ];
     
     % Initialize the stoichiometric matrix
     N = [ ];
     
     % For each reaction in the model
     for i = 1:numel(model.reaction)
-        
+      
         % Initialize the vector for the reaction's reactant complex
-        reactant_complexes(:, end+1) = zeros(m, 1);
+        reactant_complex(:, end+1) = zeros(m, 1);
         
         % Fill it out with the stoichiometric coefficients of the species in the reactant complex
         for j = 1:numel(model.reaction(i).reactant)
-            reactant_complexes(find(strcmp(model.reaction(i).reactant(j).species, model.species), 1), end) = model.reaction(i).reactant(j).stoichiometry;
+            reactant_complex(find(strcmp(model.reaction(i).reactant(j).species, model.species), 1), end) = model.reaction(i).reactant(j).stoichiometry;
         end
         
         % Initialize the vector for the reaction's product complex
-        product_complexes(:, end+1) = zeros(m, 1);
+        product_complex(:, end+1) = zeros(m, 1);
         
         % Fill it out with the stoichiometric coefficients of the species in the product complex
         for j = 1:numel(model.reaction(i).product)
-            product_complexes(find(strcmp(model.reaction(i).product(j).species, model.species), 1), end) = model.reaction(i).product(j).stoichiometry;
+            product_complex(find(strcmp(model.reaction(i).product(j).species, model.species), 1), end) = model.reaction(i).product(j).stoichiometry;
         end
         
         % Create a vector for the stoichiometric matrix: Difference between the two previous vectors
-        N(:, end+1) = product_complexes(:, end) - reactant_complexes(:, end); % N %
+        N(:, end+1) = product_complex(:, end) - reactant_complex(:, end);
         
         % If the reaction is reversible
         if model.reaction(i).reversible
-            
+          
             % Insert a new vector for the reactant complex: make it same as the product complex
-            reactant_complexes(:, end+1) = product_complexes(:, end);
+            reactant_complex(:, end+1) = product_complex(:, end);
             
             % Insert a new vector for the product complex: make it the same as the reactant complex
-            product_complexes(:, end+1) = reactant_complexes(:, end-1);
+            product_complex(:, end+1) = reactant_complex(:, end-1);
             
             % Insert a new vector in the stoichiometric matrix: make it the additive inverse of the vector formed earlier
             N(:, end+1) = -N(:, end);
@@ -147,7 +147,7 @@ function [model] = network_numbers(model)
     
     % Get just the unique complexes
     % ind2(i) is the index in Y of the reactant complex in reaction i
-    [Y, ~, ind2] = unique([reactant_complexes product_complexes]', 'rows');
+    [Y, ~, ind2] = unique([reactant_complex, product_complex]', 'rows');
     
     % Construct the matrix of complexes
     Y = Y';
@@ -162,7 +162,7 @@ function [model] = network_numbers(model)
     %
     
     % Get just the unique reactant complexes
-    reactant_complexes_unique = unique([reactant_complexes]', 'rows')';
+    reactant_complexes_unique = unique(reactant_complex', 'rows')';
     
     % Count the number of unique reactant complexes
     n_r = size(reactant_complexes_unique, 2);
@@ -191,27 +191,104 @@ function [model] = network_numbers(model)
     % Linkage classes
     %
     
-    % Initialize a matrix (complexes x complexes) for the reacts_to relation
-    % This is for testing reversibility of the network
-    reacts_to = false(n, n);
-    
-    % Initialize matrix (complexes x total reactions) for the reacts_in relation
-    % This is the incidence matrix I_a
-    reacts_in = zeros(n, r);
-    
-    % Fill out the entries of the matrices
-    for i = 1:r
+    % Initialize an undirected graph g
+    g = init_graph();
+
+    % Go through each column of Y (a complex)
+    for i = 1:n
         
-        % reacts_to(i, j) = true iff there is a reaction r: y_i -> y_j
-        reacts_to(ind2(i), ind2(i + r)) = true;
+        % For the zero complex
+        if numel(find(Y(:, i))) == 0
+            complex = '0';
         
-        % reacts_in(i, r) = -1 and reacts_in(j, r) = 1) iff there is a reaction r: y_i -> y_j
-        reacts_in(ind2(i), i) = -1;
-        reacts_in(ind2(i+r), i) = 1;
+        % Otherwise
+        else
+            
+            % Check which species appear in the complex
+            for j = 1:numel(find(Y(:, i)))
+                
+                % For the first species
+                if j == 1
+                    
+                    % Don't show the stoichiometry if it's 1
+                    if Y(:, i)(find(Y(:, i))(j)) == 1
+                        complex = [model.species{find(Y(:, i))(j)}];
+                    
+                    % Otherwise, include it
+                    else
+                        complex = [num2str(Y(:, i)(find(Y(:, i))(j))), model.species{find(Y(:, i))(j)}];
+                    end
+                
+                % We need the + sign for succeeding species
+                else
+                    if Y(:, i)(find(Y(:, i))(j)) == 1
+                        complex = [complex, '+', model.species{find(Y(:, i))(j)}];
+                    else
+                        complex = [complex, '+', num2str(Y(:, i)(find(Y(:, i))(j))), model.species{find(Y(:, i))(j)}];
+                    end
+                end
+            end 
+        end
+        
+        % Add this complex in the list of vertices of g
+        g = add_vertex(g, complex);
     end
     
-    % Linkage classes
-    linkage_class = connected_components(umultigraph(reacts_to | reacts_to'));
+    % Add edges to g: Ci -> Cj forms an edge
+    % ~ suppresses the original output
+    for i = 1:r
+        g = add_edge(g, g.vertices{[~, loc] = ismember(reactant_complex(:, i)', Y', 'rows')}, g.vertices{[~, loc] = ismember(product_complex(:, i)', Y', 'rows')});
+    end
+    
+    % Initialize the vector which will indicate in which linkage class number a vertex (i.e., complex) belongs to
+    linkage_class = zeros(numel(g.vertices), 1);
+    
+    % Initialize the linkage class number tracker
+    linkage_class_num = 0;
+    
+    % Go to each vertex
+    for i = 1:numel(g.vertices)
+        
+        % Pay attention only to a vertex which has no linkage class number yet
+        if linkage_class(i) == 0
+            
+            % This vertex goes to the next linkage class number
+            linkage_class_num += 1;
+            
+            % Assign the linkage class number to the vertex
+            linkage_class(i) = linkage_class_num;
+            
+            % Take note of the vertex that needs to be checked for edges
+            to_check = [i];
+            
+            % Continue assigning a linkage class number to vertices that get into the check list
+            while ~isempty(to_check)
+                
+                % Get the vertex in the check list
+                v1 = to_check(end);
+                
+                % Remove the vertex from the check list (since we now know which vertex to focus on)
+                to_check(end) = [ ];
+                
+                % Check to which vertices the vertex is connected to
+                for j = 1:numel(g.edges{v1})
+                    
+                    % Take note of the vertex it is connected to
+                    v2 = g.edges{v1}(j).vertex;
+                    
+                    % Pay attention to this vertex if it has no linkage class number yet
+                    if linkage_class(v2) == 0
+                        
+                        % Assign this vertex with the same linkage class number as the vertex it is connected to
+                        linkage_class(v2) = linkage_class_num;
+                        
+                        % Add this vertex to our check list: in the next round, we'll check to which other vertices it is connected to
+                        to_check(end+1) = v2;
+                    end
+                end
+            end
+        end
+    end
     
     % Count the number of linkage classes
     l = max(linkage_class);
@@ -222,14 +299,142 @@ function [model] = network_numbers(model)
     % Strong linkage classes
     %
     
-    % Check if the network is reversibile
-    is_reversible = isequal(reacts_to, reacts_to');
+    % Initialize a directed graph g
+    g = init_graph();
+
+    % Go through each column of Y (a complex)
+    for i = 1:n
+        
+        % For the zero complex
+        if numel(find(Y(:, i))) == 0
+            complex = '0';
+        
+        % Otherwise
+        else
+            
+            % Check which species appear in the complex
+            for j = 1:numel(find(Y(:, i)))
+                
+                % For the first species
+                if j == 1
+                    
+                    % Don't show the stoichiometry if it's 1
+                    if Y(:, i)(find(Y(:, i))(j)) == 1
+                        complex = [model.species{find(Y(:, i))(j)}];
+                    
+                    % Otherwise, include it
+                    else
+                        complex = [num2str(Y(:, i)(find(Y(:, i))(j))), model.species{find(Y(:, i))(j)}];
+                    end
+                
+                % We need the + sign for succeeding species
+                else
+                    if Y(:, i)(find(Y(:, i))(j)) == 1
+                        complex = [complex, '+', model.species{find(Y(:, i))(j)}];
+                    else
+                        complex = [complex, '+', num2str(Y(:, i)(find(Y(:, i))(j))), model.species{find(Y(:, i))(j)}];
+                    end
+                end
+            end 
+        end
+        
+        % Add this complex in the list of vertices of G
+        g = add_vertex(g, complex);
+    end
     
-    % Strong linkage classes
-    if is_reversible
-        strong_linkage_class = linkage_class;
-    else
-        strong_linkage_class = strongly_connected_components(multigraph(reacts_to));
+    % Add a directed edge to g: Ci -> Cj forms an edge
+    for i = 1:r
+        g = add_path(g, g.vertices{[~, loc] = ismember(reactant_complex(:, i)', Y', 'rows')}, g.vertices{[~, loc] = ismember(product_complex(:, i)', Y', 'rows')});
+    end
+    
+    % Define function which visits each complex (i.e., vertex) v and the other vertices connected to it
+    % This has to be placed here (this was taken from [2])
+    function visit(v)
+        
+        % Set the discovery time of the complex as the current time
+        discovery_time(v) = time;
+        
+        % Set the discovery time of the strong linkage class as the current time
+        slc_discovery_time(v) = time;
+        
+        % Move the time forward for the next complex
+        time = time + 1;
+        
+        % Add the complex in the list of complexes in the same strong linkage class
+        stack(end+1) = v;
+        
+        % Note that the complex is already listed in the strong linkage class
+        on_stack(v) = true;
+        
+        % Go through each edge connected to the vertex (i.e., complex)
+        for j = 1:numel(g.edges{v})
+            
+            % Take the vertex connected to it
+            v2 = g.edges{v}(j).vertex;
+            
+            % If the vertex is not yet visited
+            if discovery_time(v2) == 0
+                
+                % Apply the visit function to this vertex
+                visit(v2);
+                
+                % Set the discovery time of the strong linkage class
+                % slc_discovery_time(v2) < slc_discovery_time(v) iff a vertex in the stack before v is reachable from v2 (and so they are all in the same strong linkage class)
+                slc_discovery_time(v) = min(slc_discovery_time(v), slc_discovery_time(v2));
+            
+            % If v2 was visited before v
+            elseif on_stack(v2)
+                
+                % So v and v2 are in the same component, and they must have the same slc_discovery_time
+                slc_discovery_time(v) = min(slc_discovery_time(v), slc_discovery_time(v2));
+            end
+        end
+        
+        % If v is the first visited node of its strong linkage class, all the other vertices of the strong linkage class follow it on the stack
+        if slc_discovery_time(v) == discovery_time(v) 
+            while true
+                v2 = stack(end);
+                stack(end) = [ ];
+                on_stack(v2) = false;
+                strong_linkage_class(v2) = slc_num;
+                if v2 == v
+                    break
+                end
+            end
+            
+            % Add 1 to the strong linkage class number
+            slc_num = slc_num + 1;
+        end
+    end
+    
+    % Initialize the discovery time of the vertices
+    discovery_time = zeros(numel(g.vertices), 1);
+    
+    % Initialize the discovery time of the [first visited complex of the] strong linkage class of the vertices
+    slc_discovery_time = zeros(numel(g.vertices), 1);
+    
+    % Start the timer at 1
+    time = 1;
+    
+    % Initialize the list of complexes in the strong linkage class
+    stack = [ ];
+    
+    % Initialize that no vertex is on a strong linkage class
+    on_stack = false(numel(g.vertices), 1);
+    
+    % Initialize vector of strong linkage class numbers
+    strong_linkage_class = zeros(numel(g.vertices), 1);
+    
+    % Start numbering the strong linkage class at 1
+    slc_num = 1;
+    
+    % Go through each complex (i.e., vertex)
+    for i = 1:numel(g.vertices)
+        
+        % Use the visit function if it has no strong linkage classs number
+        if strong_linkage_class(i) == 0
+            visit(i);
+        end
     end
     
     % Count the number of strong linkage classes
@@ -240,6 +445,17 @@ function [model] = network_numbers(model)
     %
     % Terminal linkage classes
     %
+    
+    % Initialize a matrix (complexes x complexes) for the reacts_to relation
+    % This is for testing reversibility of the network
+    reacts_to = false(n, n);
+    
+    % Fill out the entries of the matrix
+    for i = 1:r
+        
+        % reacts_to(i, j) = true iff there is a reaction r: y_i -> y_j
+        reacts_to(ind2(i), ind2(i + r)) = true;
+    end
     
     % Count the number of terminal strong linkage classes
     % Initialize the count
@@ -281,6 +497,18 @@ function [model] = network_numbers(model)
     %
     % Reactant rank
     %
+    
+    % Initialize matrix (complexes x total reactions) for the reacts_in relation
+    % This is the incidence matrix I_a
+    reacts_in = zeros(n, r);
+    
+    % Fill out the entries of the matrix
+    for i = 1:r
+        
+        % reacts_in(i, r) = -1 and reacts_in(j, r) = 1) iff there is a reaction r: y_i -> y_j
+        reacts_in(ind2(i), i) = -1;
+        reacts_in(ind2(i+r), i) = 1;
+    end
     
     % Construct the incidence matrix
     % We can decompose this into I_a = I_a^+ - I_a^-
@@ -378,276 +606,206 @@ end
 
 
 
-% % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
-%                                                                     %
-% Function 1 of 5: umultigraph (taken from [2])                       %
-%                                                                     %
-%    - Purpose: To fix duplicate edges in an undirected graph         %
-%    - Input                                                          %
-%         - g: undirected graph                                       %
-%    - Output                                                         %
-%         - g: undirected graph where edges with the same endpoints   %
-%              and the same label, is substituted with an edge with   %
-%              weight equal to the sum of their weights               %
-%    - Used in umultigraph                                            %
-%                                                                     %
-% % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
+% % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
+%                                                                         %
+% Function 1 of 4: init_graph                                             %
+%                                                                         %
+%    - Purpose: To initialize an undirected graph                         %
+%    - Input: none                                                        %
+%    - Output                                                             %
+%         - g: empty structure with subfields 'vertices' and 'edges'      %
+%    - Used in network_numbers (linkage classes, strong linkage classes)  %
+%                                                                         %
+% % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
 
-function g = fix_dup_edges(g)
+function g = init_graph()
     
-    fixed_edges = 0;
-    for i = 1:numel(g.vertices)
-        j = 1;
-        while j <= numel(g.edges{i})-1
-            v2 = g.edges{i}(j).vertex;
-            label = g.edges{i}(j).label;
-            k = j + 1;
-            while k <= numel(g.edges{i})
-                if v2 == g.edges{i}(k).vertex && strcmp(label, g.edges{i}(k).label)
-                    g.edges{i}(j).weight = g.edges{i}(j).weight + g.edges{i}(k).weight;
-                    g.edges{i}(k) = [];
-                    if i < v2
-                        disp(['Duplicated edge: ' g.vertices{i} ' -(' label ')-> ' g.vertices{v2}])
-                    end
-                    fixed_edges = fixed_edges + 1;
-                else
-                    k = k + 1;
-                end
-            end
-            j = j + 1;
-        end
-    end
-    if fixed_edges > 0
-        disp(['Summary: fixed ' int2str(fixed_edges / 2) ' duplicated edges'])
-    end
+    % Initialize a structure with empty fields
+    g = struct();
+    
+    % Initialize 'vertices' field
+    g.vertices = cell();
+    
+    % Initialize 'edges' field
+    g.edges = cell();
 
 end
 
 
 
-% % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
-%                                                                     %
-% Function 2 of 5: umultigraph (taken from [2])                       %
-%                                                                     %
-%    - Purpose: To initialize an undirected graph                     %
-%    - Input: none                                                    %
-%    - Output                                                         %
-%         - g: empty undirected graph                                 %
-%    - Used in network_numbers (linkage class computation)            %
-%                                                                     %
-% % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
+% % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
+%                                                                         %
+% Function 2 of 4: add_vertex                                             %
+%                                                                         %
+%    - Purpose: To add a vertex to a graph g                              %
+%    - Inputs                                                             %
+%         - g: graph structure                                            %
+%         - v: name of vertex to be added                                 %
+%    - Output                                                             %
+%         - g: structure with vertex added                                %
+%    - Used in network_numbers (linkage classes, strong linkage classes)  %
+%                                                                         %
+% % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
 
-function ug = umultigraph(varargin)
+function g = add_vertex(g, v)
     
-    if nargin == 0
-        ug.vertices = {};
-        ug.edges = {};
-    elseif nargin == 1 && isa(varargin{1}, 'umultigraph')
-        ug = varargin{1};
-    elseif nargin == 1 && isreal(varargin{1}) && ~ischar(varargin{1}) && isequal(varargin{1}, varargin{1}')
-        ug.vertices = cell(size(varargin{1}, 1), 1);
-        for i = 1:size(varargin{1}, 1)
-            ug.vertices{i} = num2str(i);
-        end
-        ug.edges = cell(numel(ug.vertices), 1);
-        for i = 1:size(varargin{1}, 1)
-            for j = i:size(varargin{1}, 2)
-                if varargin{1}(i, j)
-                    ug.edges{i}(end+1) = struct('vertex', j, 'label', '', 'weight', varargin{1}(i, j));
-                    if i ~= j
-                        ug.edges{j}(end+1) = struct('vertex', i, 'label', '', 'weight', varargin{1}(i, j));
-                    end
-                end
-            end
-        end
-    elseif nargin == 2 && isvector(varargin{1}) && iscellstr(varargin{1}) && ndims(varargin{2}) == 2 && iscell(varargin{2}) && size(varargin{2}, 2) >= 3 && size(varargin{2}, 2) <= 4 && iscellstr(varargin{2}(:, 1:3))
-        if size(varargin{2}, 2) == 4 && (~isreal(cell2mat(varargin{2}(:, 4))) || ischar(cell2mat(varargin{2}(:, 4))))
-            error('Wrong arguments: the edge weights should be real numbers.')
-        end
-        ug.vertices = varargin{1};
-        ug.edges = cell(numel(ug.vertices), 1);
-        for i = 1:size(varargin{2}, 1)
-            v1 = find(strcmp(varargin{2}{i, 1}, ug.vertices), 1);
-            v2 = find(strcmp(varargin{2}{i, 2}, ug.vertices), 1);
-            if size(varargin{2}, 2) == 3
-                ug.edges{v1}(end+1) = struct('vertex', v2, 'label', varargin{2}{i, 3}, 'weight', 1);
-                if v1 ~= v2
-                    ug.edges{v2}(end+1) = struct('vertex', v1, 'label', varargin{2}{i, 3}, 'weight', 1);
-                end
-            else
-                ug.edges{v1}(end+1) = struct('vertex', v2, 'label', varargin{2}{i, 3}, 'weight', varargin{2}{i, 4});
-                if v1 ~= v2
-                    ug.edges{v2}(end+1) = struct('vertex', v1, 'label', varargin{2}{i, 3}, 'weight', varargin{2}{i, 4});
-                end
-            end
-        end
-        ug = fix_dup_edges(ug);
+    % Determine the index of 'v', if it already exists, in the 'vertices' field
+    location = find(strcmp(v, g.vertices));
+    
+    % Case 1: 'location' is empty
+    if isempty(location)
+        
+        % Add vertex 'v' in the list of vertices in 'g'
+        g.vertices{end+1} = v;
+        
+        % Get the vertex number of the added vertex
+        vertex_num = find(strcmp(v, g.vertices));
+        
+        % Initialize the place in 'g.edges' where the edges connecting v to other vertices will be indicated
+        g.edges{vertex_num} = [ ];
+    
+    % Case 2: 'location' is not empty
     else
-        error('Wrong arguments.');
+        disp(['Vertex ' v ' is already in the graph.']);
     end
 
 end
 
 
 
-% % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
-%                                                                     %
-% Function 3 of 5: connected_components (taken from [2])              %
-%                                                                     %
-%    - Purpose: To determine to which component each vertex belongs   %
-%         to                                                          %
-%    - Input                                                          %
-%         - g: graph with edges and vertices                          %
-%    - Output                                                         %
-%         - cc: list of component number to which each vertex belongs %
-%         to                                                          %
-%    - Used in network_numbers (linkage class computation)            %
-%                                                                     %
-% % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
+% % % % % % % % % % % % % % % % % % % % % % % % % % % % %
+%                                                       %
+% Function 3 of 4: add_edge                             %
+%                                                       %
+%    - Purpose: To add an edge to a graph g             %
+%    - Inputs                                           %
+%         - g: graph structure with vertices v1 and v2  %
+%         - v1: one vertex of edge to be added          %
+%         - v2: another vertex of edge to be added      %
+%    - Output                                           %
+%         - g: structure with edge added                %
+%    - Used in network_numbers (linkage classes)        %
+%                                                       %
+% % % % % % % % % % % % % % % % % % % % % % % % % % % % %
 
-function cc = connected_components(g)
-
-    function visit(v)
-        cc(v) = n_cc;
-        to_finish = [v];
-        while ~isempty(to_finish)
-            v1 = to_finish(end);
-            to_finish(end) = [ ];
-            for j = 1:numel(g.edges{v1})
-                v2 = g.edges{v1}(j).vertex;
-                if cc(v2) == 0 % not yet visited
-                    cc(v2) = n_cc;
-                    to_finish(end+1) = v2;
-                end
-            end
-        end
-    end
+function g = add_edge(g, v1, v2)
     
-    cc = zeros(numel(g.vertices), 1);
-    n_cc = 0;
-    for i = 1:numel(g.vertices)
-        if cc(i) == 0 % not yet visited
-            n_cc = n_cc + 1;
-            visit(i);
-        end
-    end
-
-end
-
-
-
-% % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
-%                                                                     %
-% Function 4 of 5: multigraph (taken from [2])                        %
-%                                                                     %
-%    - Purpose: To initialize a directed graph                        %
-%    - Input: none                                                    %
-%    - Output                                                         %
-%         - g: empty directed graph                                   %
-%    - Used in network_numbers (strong linkage class computation)     %
-%                                                                     %
-% % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
-
-function g = multigraph(varargin)
+    % Make sure 'v1' and 'v2' are already in 'g'
     
-    if nargin == 0
-        g.vertices = {};
-        g.edges = {};
-    elseif nargin == 1 && isa(varargin{1}, 'multigraph')
-        g = varargin{1};
-    elseif nargin == 1 && isreal(varargin{1}) && ~ischar(varargin{1}) && ndims(varargin{1}) == 2 && size(varargin{1}, 1) == size(varargin{1}, 2)
-        g.vertices = cell(size(varargin{1}, 1), 1);
-        for i = 1:size(varargin{1}, 1)
-            g.vertices{i} = num2str(i);
-        end
-        g.edges = cell(numel(g.vertices), 1);
-        for i = 1:size(varargin{1}, 1)
-            for j = 1:size(varargin{1}, 2)
-                if varargin{1}(i, j)
-                    g.edges{i}(end+1) = struct('vertex', j, 'label', '', 'weight', varargin{1}(i, j));
-                end
-            end
-        end
-    elseif nargin == 2 && isvector(varargin{1}) && iscellstr(varargin{1}) && ndims(varargin{2}) == 2 && iscell(varargin{2}) && size(varargin{2}, 2) >= 3 && size(varargin{2}, 2) <= 4 && iscellstr(varargin{2}(:, 1:3))
-        if size(varargin{2}, 2) == 4 && (~isreal(cell2mat(varargin{2}(:, 4))) || ischar(cell2mat(varargin{2}(:, 4))))
-            error('Wrong arguments: the edge weights should be real numbers.')
-        end
-        g.vertices = varargin{1};
-        g.edges = cell(numel(g.vertices), 1);
-        for i = 1:size(varargin{2}, 1)
-            v1 = find(strcmp(varargin{2}{i, 1}, g.vertices), 1);
-            v2 = find(strcmp(varargin{2}{i, 2}, g.vertices), 1);
-            if size(varargin{2}, 2) == 3
-                g.edges{v1}{end+1} = struct('vertex', v2, 'label', varargin{2}{i, 3}, 'weight', 1);
-            else
-                g.edges{v1}{end+1} = struct('vertex', v2, 'label', varargin{2}{i, 3}, 'weight', varargin{2}{i, 4});
-            end
-        end
+    % Case 1: 'v1' or 'v2' is not in 'g'
+    if isempty(find(strcmp(v1, g.vertices))) || isempty(find(strcmp(v2, g.vertices)))
+        disp(['Make sure both ' v1 ' and ' v2 ' are in the graph.']);
+        
+    % Case 2: Both vertices are already in 'g'
     else
-        error('Wrong arguments.');
+        
+        % Case 2.1: The vertices are the same
+        if strcmp(v1, v2) == 1
+            disp(['Make sure the vertices are different.']);
+            
+        % Case 2.2: The vertices are different
+        else
+            
+            % Get the index of 'v1' and 'v2' in 'g.vertices'
+            v1_index = find(strcmp(v1, g.vertices));
+            v2_index = find(strcmp(v2, g.vertices));
+            
+            % Check if an edge with 'v1' already exists
+            try
+                g.edges{v1_index};
+            catch
+                
+                % If none, initialize 'g.edges' for 'v1'
+                g.edges{v1_index} = cell();
+            end
+            
+            % Check if an edge with 'v2' already exists
+            try
+                g.edges{v2_index};
+            catch
+                
+                % If none, initialize 'g.edges' for 'v2'
+                g.edges{v2_index} = cell();
+            end
+            
+            % Check if an edge between 'v1' and 'v2' already exists
+            for i = 1:numel(g.edges{v1_index})
+                if g.edges{v1_index}(i).vertex == v2_index
+%%                    disp(['Edge ' v1 '-' v2 ' already exists.']);
+                    
+                    % 'return' exits the function; we don't need to continue the code
+                    % If we wanted to just get out of the loop, we use 'break'
+                    return
+                end
+            end
+            
+            % As a control, check also if an edge between 'v2' and 'v1' already exists
+            for i = 1:numel(g.edges{v2_index})
+                if g.edges{v2_index}(i).vertex == v1_index
+%%                    disp(['Edge ' v2 '-' v1 ' already exists.']);
+                    return
+                end
+            end
+            
+            % After all the controls above have been implemented, add an edge in the 'edges' field in 'g' for both 'v1' and 'v2'
+            g.edges{v1_index}(end+1) = struct('vertex', v2_index, 'label', [v1 '-' v2]);
+            g.edges{v2_index}(end+1) = struct('vertex', v1_index, 'label', [v1 '-' v2]);
+        end
     end
 
 end
 
 
 
-% % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
-%                                                                     %
-% Function 5 of 5: strongly_connected_components (taken from [2])     %
-%                                                                     %
-%    - Purpose: To determine to which strongly connected component    %
-%         each vertex belongs to                                      %
-%    - Input                                                          %
-%         - g: graph with edges and vertices                          %
-%    - Output                                                         %
-%         - scc: list of strongly connected component number to which %
-%         each vertex belongs to                                      %
-%    - Used in network_numbers (strong linkage class computation)     %
-%                                                                     %
-% % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % % %
+% % % % % % % % % % % % % % % % % % % % % % % % % % % % %
+%                                                       %
+% Function 4 of 4: add_path                             %
+%                                                       %
+%    - Purpose: To add a directed edge to a graph g     %
+%    - Inputs                                           %
+%         - g: graph structure with vertices v1 and v2  %
+%         - v1: starting vertex of edge to be added     %
+%         - v2: ending vertex of edge to be added       %
+%    - Output                                           %
+%         - g: structure with edge added                %
+%    - Used in network_numbers (strong linkage classes) %
+%                                                       %
+% % % % % % % % % % % % % % % % % % % % % % % % % % % % %
 
-function scc = strongly_connected_components(g)
+function g = add_path(g, v1, v2)
     
-    function visit(v)
-        dtime(v) = time;
-        scc_dtime(v) = time;
-        time = time + 1;
-        stack(end+1) = v;
-        on_stack(v) = true;
-        for j = 1:numel(g.edges{v})
-            v2 = g.edges{v}(j).vertex;
-            if dtime(v2) == 0
-                visit(v2);
-                scc_dtime(v) = min(scc_dtime(v), scc_dtime(v2)); % scc_dtime(v2) < scc_dtime(v) iff a vertex in the stack before v is reachable from v2 (and so they are all in the same scc)
-            elseif on_stack(v2) % v2 was visited before v
-                scc_dtime(v) = min(scc_dtime(v), scc_dtime(v2)); % so v and v2 are in the same component, and they must have the same scc_dtime
-            end
-        end
-        if scc_dtime(v) == dtime(v) % v is the first visited node of its scc, all the other vertices of the scc follow it on the stack
-            while true
-                v2 = stack(end);
-                stack(end) = [];
-                on_stack(v2) = false;
-                scc(v2) = n_cc;
-                if v2 == v
-                    break
+    % Case 1: v1 or v2 is not in g
+    if (isempty(find(strcmp(v1, g.vertices))) || isempty(find(strcmp(v2, g.vertices))))
+        disp(['Make sure both ' v1 ' and ' v2 ' are in the graph.']);
+        
+    % Case 2: Both vertices are already in g
+    else
+        
+        % Case 2.1: The vertices are the same
+        if strcmp(v1, v2) == 1
+            disp(['Make sure the vertices are different.']);
+            
+        % Case 2.2: The vertices are different
+        else
+            
+            % Get the index of v1 and v2 in g.vertices
+            v1_index = find(strcmp(v1, g.vertices));
+            v2_index = find(strcmp(v2, g.vertices));
+            
+            % Check if an edge from v1 to v2 already exists
+            for i = 1:numel(g.edges{v1_index})
+                if g.edges{v1_index}(i).vertex == v2_index
+%%                    disp(['Edge ' v1 '->' v2 ' already exists.']);
+                    
+                    % 'return' exits the function; we don't need to continue the code
+                    % If we wanted to just get out of the loop, we use 'break'
+                    return
                 end
             end
-            n_cc = n_cc + 1;
+            
+            % Add a directed edge in the 'edges' field in g for v1
+            g.edges{v1_index}(end+1) = struct('vertex', v2_index, 'label', [v1 '->' v2]);
         end
     end
-    
-    dtime = zeros(numel(g.vertices), 1); % vertex discovery times by visit()
-    scc_dtime = zeros(numel(g.vertices), 1); % discovery time of (the first visited node of) the vertex scc
-    time = 1;
-    stack = [];
-    on_stack = false(numel(g.vertices), 1);
-    scc = zeros(numel(g.vertices), 1);
-    n_cc = 1;
-    for i = 1:numel(g.vertices)
-        if scc(i) == 0
-            visit(i);
-        end
-    end
- 
+
 end
