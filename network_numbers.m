@@ -47,7 +47,7 @@
 %                   - reversible: has the value true or false indicating if   %
 %                        the reaction is reversible or not, respectively      %
 %                                                                             %
-% References:                                                                 %
+% References                                                                  %
 %    [1] Arceo C, Jose E, Lao A, Mendoza E (2017) Reactant subspaces and      %
 %           kinetics of chemical reaction networks. J Math Chem 56:395–422.   %
 %           http://doi.org/10.1007/s10910-017-0809-x                          %
