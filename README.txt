@@ -4,13 +4,7 @@
 
 ========================================================
 
-GNU Octave (https://www.gnu.org/software/octave/index) was used to develop the functions used here.
-
-
-
-============
-The Function
-============The function network_numbers returns the values of the following network numbers of a chemical reaction network:
+GNU Octave (https://www.gnu.org/software/octave/index) was used to develop the functions used here.The function network_numbers returns the values of the following network numbers of a chemical reaction network:
 
      - Species (m)
      - Complexes (n)
@@ -31,14 +25,6 @@ The output variable 'model' allows the user to view the complete network with al
 Parts of the code come from the file model_analysis.m which is part of the ERNEST toolbox for chemical chemical reaction network theory [3]. The computation of the number of linkage classes and strong linkage classes also utilizes functions from the same toolbox, specifically in the folders @multigraph and @umultigraph. These can all be downloaded from https://www.sissa.it/fa/altafini/papers/SoAl09/.
 
 The codes for the computation for the number of reversible reaction, irreversible reactions, reactions, reactant rank, and reactant deficiency are unique from the author. Discussions on reactant rank and reactant deficiency can be found on [2].
-
-
-
-====
-Note
-====
-
-Make sure the file network_numbers.m and the folders @multigraph and @umultigraph are in the same folder/path.
 
 
 
@@ -89,8 +75,8 @@ For questions, comments, and suggestions, feel free to contact me at pvnlubenia@
 References
 ==========
 
-   [1] Arceo, C.P.A, Jose, E.C., Lao, A.R., and Mendoza, E.R. (2016). Reaction networks and kinetics of biochemical systems (supplementary materials). Mathematical Biosciences, 283, 13-29. doi:10.1016/j.mbs.2016.10.004.
+   [1] Arceo C, Jose E, Lao A, Mendoza E (2016) Reaction networks and kinetics of biochemical systems (supplementary materials). Math Biosci 283:13-29. https://doi.org/10.1016/j.mbs.2016.10.004
 
-   [2] Arceo, C.P.A, Jose, E.C., Lao, A.R., and Mendoza, E.R. (2017). Reactant subspaces and kinetics of chemical reaction networks. Journal of Mathematical Chemistry, 56, 395Ð422. doi:10.1007/s10910-017-0809-x.
+   [2] Arceo C, Jose E, Lao A, Mendoza E (2017) Reactant subspaces and kinetics of chemical reaction networks. J Math Chem 56:395Ð422. http://doi.org/10.1007/s10910-017-0809-x
 
-   [3] Soranzo, N. and Altafini, C. (2009). ERNEST: a toolbox for chemical chemical reaction network theory. Bioinformatics, 25(21), 2853Ð2854. doi:10.1093/bioinformatics/btp513.
+   [3] Soranzo N, Altafini C (2009) ERNEST: a toolbox for chemical reaction network theory. Bioinform 25(21):2853Ð2854. https://doi.org/10.1093/bioinformatics/btp513
